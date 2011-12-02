@@ -7,7 +7,8 @@ published by the Free Software Foundation, either version 3 of
 the License, or (at your option) any later version.
 
 py-video-downloader is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
+WITHOUT ANY WARRANTY
+ without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Lesser General Public License for more details.
 
@@ -19,6 +20,9 @@ Public License along with py-video-downloader.  If not, see
 from videodownloader.providers import Provider
 import re
 import urllib
+import urlparse
+
+parse_params = lambda x: urlparse.parse_qs(urllib.unquote(x))
 
 class YouTube(Provider):
     FORMAT_PRIORITY = ['37', '22', '45', '44', '35', '43', '18', '34', '5']
@@ -70,37 +74,31 @@ class YouTube(Provider):
             self._debug('YouTube', '__init__', 'fileext', self.fileext)
 
         #Get magic data needed to download
-        match = re.search(r'&token=([-_0-9a-zA-Z]+%3D)', self._html)
-        self.token = urllib.unquote(match.group(1)) if match else None
+        self.token = info('token')
         self._debug('YouTube', '__init__', 'token', self.token)
 
         #Video thumbnail
-        match = re.search(r'&thumbnail_url=(.+?)&', self._html)
-        self.thumbnail = urllib.unquote(match.group(1)) if match else None
+        self.thumbnail = info('thumbnail_url')
         self._debug('YouTube', '__init__', 'thumbnail', self.thumbnail)
 
         #Video duration (seconds)
         try:
-            match = re.search(r'&length_seconds=(\d+)&', self._html)
-            self.duration = int(match.group(1)) if match else -1
-        except ValueError:
+            self.duration = int(info('length_seconds'))
+        except ValueError, KeyError:
             #TODO: warn
             self.duration = -1
         self._debug('YouTube', '__init__', 'duration', self.duration)
 
         #Other YouTube-specific information
-        match = re.search(r'&author=(.+?)&', self._html)
-        self.author = match.group(1) if match else None
+        self.author = info('author')
         self._debug('YouTube', '__init__', 'author', self.author)
 
-        match = re.search(r'keywords=(.+?)&', self._html)
-        self.keywords = set(urllib.unquote(match.group(1)).split(',')) if match else set([])
+        self.keywords = set(info('keywords').split(','))
         self._debug('YouTube', '__init__', 'keywords', ','.join(self.keywords))
 
         try:
-            match = re.search(r'&avg_rating=(\d\.\d+)&', self._html)
-            self.rating = float(match.group(1)) if match else -1.0
-        except ValueError:
+            self.rating = float(info('avg_rating'))
+        except ValueError, KeyError:
             #TODO: warn
             self.rating = -1.0
         self._debug('YouTube', '__init__', 'rating', self.rating)
@@ -117,14 +115,14 @@ class YouTube(Provider):
         if self.fileext is None or self.fileext == Provider.DEFAULT_EXT:
             self.fileext = YouTube.FORMATS[self.format][-3:].lower()
 
-        url = 'http://youtube.com/get_video?video_id=%s&fmt=%s&t=%s' % (self.id, self.format, self.token)
+        url = self.formats[self.format]
 
         self._debug('YouTube', 'get_download_url', 'url', url)
         return url
 
     def _get_best_format(self):
-        for format in YouTube.FORMAT_PRIORITY:
-            if format in self.formats:
-                self._debug('YouTube', '_get_best_format', 'format', format)
-                return format
+        for fmt_id in YouTube.FORMAT_PRIORITY:
+            if fmt_id in self.formats and self.formats[fmt_id]:
+                self._debug('YouTube', '_get_best_format', 'format', fmt_id)
+                return fmt_id
         raise ValueError('Could not determine the best available format. YouTube has likely changed its page layout. Please contact the author of this script.')
