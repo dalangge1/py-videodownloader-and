@@ -107,7 +107,10 @@ class Provider(object):
             if not os.path.isfile(self.full_filename):
                 #Save the stream to the output file
                 out = open(self.full_filename, 'wb')
-                out.write(url.read())
+
+                chunk_read(url, chunk_callback=out.write, report_hook=self.report_progress)
+
+                # out.write(url.read())
             else:
                 #Skipping
                 #TODO: warn
@@ -126,6 +129,16 @@ class Provider(object):
             self._debug('Provider', 'run', 'success', success)
             self._post_download(success)
 
+    def report_progress(self, bytes_so_far, chunk_size, total_size):
+        percent = float(bytes_so_far) / total_size
+        percent = round(percent*100, 2)
+        sys.stdout.write("Downloaded %d of %d bytes (%0.2f%%)\r" %
+                         (bytes_so_far, total_size, percent))
+
+        if bytes_so_far >= total_size:
+            sys.stdout.write('\n')
+
+
     def _debug(self, cls, method, *args):
         if self.debugging:
             if len(args) == 2:
@@ -137,6 +150,26 @@ class Provider(object):
     @staticmethod
     def _download(url):
         return urllib2.urlopen(urllib2.Request(url, headers=Provider.HEADERS))
+
+def chunk_read(response, chunk_size=8192, chunk_callback=None, report_hook=None):
+    total_size = response.info().getheader('Content-Length').strip()
+    total_size = int(total_size)
+    bytes_so_far = 0
+
+    while 1:
+        chunk = response.read(chunk_size)
+        bytes_so_far += len(chunk)
+
+        if not chunk:
+            break
+
+        if chunk_callback:
+            chunk_callback(chunk)
+
+        if report_hook:
+            report_hook(bytes_so_far, chunk_size, total_size)
+
+    return bytes_so_far
 
 
 from vimeo import Vimeo
